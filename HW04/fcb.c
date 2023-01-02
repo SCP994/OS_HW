@@ -22,14 +22,15 @@ fcb* find_fcb(int block, char* filename, char* exname, unsigned short attribute)
 		if (block == FREE || block == END) break;
 		fcbp = (fcb*)hardp[block];
 		for (int i = 0; i < FCBNUM; ++i)
-		{
-			if (attribute == 0 && (fcbp[i].attribute == 0 && strcmp(fcbp[i].filename, filename) == 0
-				|| fcbp[i].attribute == 1 && strcmp(fcbp[i].filename, filename) == 0 && strlen(fcbp[i].exname) == 0))
-				return &fcbp[i];
-			if (attribute == 1 && (fcbp[i].attribute == 1 && strcmp(fcbp[i].filename, filename) == 0 && strcmp(fcbp[i].exname, exname) == 0
-				|| fcbp[i].attribute == 0 && strcmp(fcbp[i].filename, filename) == 0 && strlen(exname) == 0))
-				return &fcbp[i];
-		}
+			if (fcbp[i].free == 1)
+			{
+				if (attribute == 0 && (fcbp[i].attribute == 0 && strcmp(fcbp[i].filename, filename) == 0
+					|| fcbp[i].attribute == 1 && strcmp(fcbp[i].filename, filename) == 0 && strlen(fcbp[i].exname) == 0))
+					return &fcbp[i];
+				if (attribute == 1 && (fcbp[i].attribute == 1 && strcmp(fcbp[i].filename, filename) == 0 && strcmp(fcbp[i].exname, exname) == 0
+					|| fcbp[i].attribute == 0 && strcmp(fcbp[i].filename, filename) == 0 && strlen(exname) == 0))
+					return &fcbp[i];
+			}
 		block = fat1->id[block];
 	}
 	return NULL;

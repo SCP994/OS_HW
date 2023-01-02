@@ -11,7 +11,6 @@ void function_init()
 	fcbop.ls = &ls;
 
 	useropenop.save = &save_to_openfiles;
-
 }
 
 void my_format()
@@ -59,12 +58,6 @@ void my_format()
 		fcbp1[1].length = 2048;
 		fcbp1[1].free = 1;
 	}
-	else
-	{
-		printf("%s\n", block->information);
-		printf("fat1->id[1000]: %d\n", fat1->id[1000]);
-		printf("fcbp1[1].filename: %s\n", fcbp1[1].filename);
-	}
 
 	for (int i = 0; i < MAXOPENFILE; ++i)
 		openfilelist[i].topenfile = 0;
@@ -72,10 +65,7 @@ void my_format()
 	curdir = 0;
 	strcpy(currentdir, "/");
 	useropenop.save(0, &fcbp1[0], currentdir);
-
-	printf("openfilelist[0]: %s, %d\n", openfilelist[0].filename, openfilelist[0].topenfile);
 }
-
 
 void my_mkdir(char* dirname)
 {
@@ -159,15 +149,105 @@ void my_ls()
 
 void my_exitsys()
 {
-	int error = save();
-	if (error == 0)
-		printf("Saved\n");
+	save();
 	free(myvhard);
 	myvhard = NULL;
 }
 
+char* trim(char* str)
+{
+	int len = strlen(str), start = 0, end = 0;
+	char* buf = (char*)malloc(sizeof(char) * (len + 1));
+	char* ret = (char*)malloc(sizeof(char) * (len + 1));
+	strcpy(buf, str);
 
-//
+	for (int i = 0; i < len; ++i)
+		if (buf[i] != ' ' && buf[i] != '\t')
+		{
+			start = i;
+			break;
+		}
+
+	for (int i = len - 1; i >= 0; --i)
+		if (buf[i] != ' ' && buf[i] != '\t')
+		{
+			end = i + 1;
+			break;
+		}
+	buf[end] = '\0';
+
+	strcpy(ret, &buf[start]);
+	free(buf);
+	return ret;
+}
+
+int check_str(char* str)
+{
+	int len = strlen(str);
+	for (int i = 0; i < len; ++i)
+		if (str[i] == ' ' || str[i] == '\t') return -1;
+	return 0;
+}
+
+void shell()
+{
+	my_format();
+
+	char buf1[100], buf2[100], cmd[100];
+	int sign = 0, len = 0;
+
+	while (1)
+	{
+		printf("filesystem-shell%s# ", currentdir);
+		fgets(buf1, 100, stdin);
+		if (buf1[strlen(buf1) - 1] == '\n') buf1[strlen(buf1) - 1] = '\0';
+		else sign = 1;
+		if (strlen(buf1) == 0) continue;
+		char* buf1_trim = trim(buf1);
+		len = strlen(buf1_trim);
+		if (len == 0)
+		{
+			free(buf1_trim);
+			continue;
+		}
+		if (strcmp(buf1_trim, "exit") == 0)
+		{
+			free(buf1_trim);
+			break;
+		}
+		else if (strcmp(buf1_trim, "ls") == 0)
+			my_ls();
+		else
+		{
+			for (int i = 0; i < len; ++i)
+				if (buf1_trim[i] == ' ' || buf1_trim[i] == '\t')
+				{
+					buf1_trim[i] = '\0';
+					break;
+				}
+			strcpy(cmd, buf1_trim);
+			strcpy(buf2, &buf1_trim[strlen(buf1_trim) + 1]);
+			char* buf2_trim = trim(buf2);
+
+			if (strcmp(cmd, "mkdir") == 0 && strlen(buf2_trim) > 0)
+				my_mkdir(buf2_trim);
+			else if (strcmp(cmd, "rmdir") == 0 && strlen(buf2_trim) > 0)
+				my_rmdir(buf2_trim);
+			else
+				printf("No such command: %s\n", buf1);
+
+			free(buf2_trim);
+		}
+		if (sign == 1)
+		{
+			while (getchar() != '\n');
+			sign = 0;
+		}
+		free(buf1_trim);
+	}
+	my_exitsys();
+}
+
 //int judge_dir(char* dirname)
 //{
 //	if (strcmp(dirname, "/") == 0) return 1;
@@ -610,72 +690,4 @@ void my_exitsys()
 //
 
 //
-//void run()
-//{
-//	my_format();
-//
-//	char buf[100], cmd[100], param[100];
-//	int t1 = -1, t2 = -1, t3 = -1;
-//	int len = 0, i = 0, j = 0;
-//
-//	while (1)
-//	{
-//		memset(buf, '\0', 100);
-//		memset(cmd, '\0', 100);
-//		memset(param, '\0', 100);
-//		printf("my_fs%s$ ", openfilelist[curdir].dir);
-//		fgets(buf, 99, stdin);
-//		len = strlen(buf);
-//		buf[--len] = '\0';
-//
-//		if (strcmp(buf, "exit") == 0)
-//		{
-//			my_exitsys();
-//			break;
-//		}
-//
-//		for (i = 0; i < len; ++i)
-//			if (buf[i] == ' ') continue;
-//			else break;
-//
-//		for (j = i; j < len; ++j)
-//			if (buf[j] != ' ')
-//				cmd[j - i] = buf[j];
-//			else
-//			{
-//				cmd[j] = '\0';
-//				for (i = j; i < len; ++i)
-//					if (buf[i] == ' ') continue;
-//					else break;
-//
-//				for (j = i; j < len; ++j)
-//					param[j - i] = buf[j];
-//				param[j - i] = '\0';
-//				break;
-//			}
-//
-//		if (strcmp(cmd, "ls") == 0 && strlen(param) == 0)
-//			my_ls();
-//		else if (strcmp(cmd, "cd") == 0 && strlen(param) > 0)
-//			my_cd(param);
-//		else if (strcmp(cmd, "mkdir") == 0 && strlen(param) > 0)
-//			my_mkdir(param);
-//		else if (strcmp(cmd, "create") == 0 && strlen(param) > 0)
-//			my_create(param);
-//		else if (strcmp(cmd, "rmdir") == 0 && strlen(param) > 0)
-//			my_rmdir(param);
-//		else if (strcmp(cmd, "rm") == 0 && strlen(param) > 0)
-//			my_rm(param);
-//		else if (strcmp(cmd, "open") == 0 && strlen(param) > 0)
-//			my_open(param);
-//		else if (strcmp(cmd, "close") == 0 && strlen(param) == 1)
-//			my_close(param[0] - '0');
-//		else if (strcmp(cmd, "write") == 0 && strlen(param) == 1)
-//			my_write(param[0] - '0');
-//		else if (strcmp(cmd, "read") == 0 && strlen(param) == 1)
-//			my_read(param[0] - '0');
-//		else
-//			printf("No such command: %s %s\n", cmd, param);
-//	}
-//}
 

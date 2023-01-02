@@ -44,5 +44,9 @@ int do_read(int fd, int len, char* text, int idx);
 
 void my_exitsys();
 
-void run();
+char* trim(char* str);
+
+int check_str(char* str);
+
+void shell();
 

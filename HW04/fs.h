@@ -1,6 +1,6 @@
 #pragma once
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define BLOCKSIZE 1024
@@ -9,6 +9,7 @@
 #define END 65535
 #define FREE 0
 #define MAXOPENFILE 10
+#define FCBNUM 32
 
 typedef struct FCB
 {
@@ -20,22 +21,13 @@ typedef struct FCB
 	char free;
 } fcb;
 
-typedef fcb(*fcbps)[25];
-
 typedef struct FCB_OP
 {
-	fcb* (*get)(fcbps p);
-	fcb* (*find)(fcbps p, char* filename, char* exname, unsigned short attribute);
-	int (*empty)(fcbps p);
+	fcb* (*get)(int block);
+	fcb* (*find)(int block, char*, char*, unsigned short);
+	int (*empty)(int block);
+	void (*ls)(int block);
 } fcb_op;
-
-fcb* get_fcb(fcbps p);
-
-fcb* find_fcb(fcbps p, char* filename, char* exname, unsigned short attribute);
-
-int empty_dir(fcbps p);
-
-
 
 typedef struct FAT
 {
@@ -53,16 +45,7 @@ typedef struct BLOCK_OP
 {
 	unsigned short* (*get)(int num);
 	void (*clean_after)(unsigned short block);
-	//unsigned short (*get_parent_block)();
 } block_op;
-
-unsigned short* get_blocks(int num);
-
-void clean_after(unsigned short block);
-
-unsigned short get_parent_block_first();
-
-
 
 typedef struct USEROPEN
 {
@@ -88,17 +71,15 @@ typedef struct USEROPEN_OP
 	int (*close_file)(int fd);
 } useropen_op;
 
-void save_to_openfiles(int idx, fcb* p, char* dir);
+unsigned char* myvhard;
+useropen openfilelist[MAXOPENFILE];
+int curdir;
+char currentdir[80];
 
-int get_openfiles_id();
+unsigned char* hardp[BLOCKNUM];
+fat* fat1;
 
-int space_dir();
-
-void clean_dir();
-
-int space_file();
-
-int check_fd(int fd);
-
-int close_file(int fd);
+block_op blockop;
+fcb_op fcbop;
+useropen_op useropenop;
 

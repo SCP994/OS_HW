@@ -1,12 +1,14 @@
 #pragma once
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "fs.h"
+#include "block.h"
+#include "useropen.h"
+#include "fcb.h"
 
 int save();
 
 int load();
+
+void function_init();
 
 void my_format();
 

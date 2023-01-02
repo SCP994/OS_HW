@@ -9,6 +9,9 @@ add_executable (cmd3 "cmd3.c")
 add_executable (shell "shell.c")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
+  set_property(TARGET cmd1 PROPERTY CXX_STANDARD 20)
+  set_property(TARGET cmd2 PROPERTY CXX_STANDARD 20)
+  set_property(TARGET cmd3 PROPERTY CXX_STANDARD 20)
   set_property(TARGET shell PROPERTY CXX_STANDARD 20)
 endif()
 

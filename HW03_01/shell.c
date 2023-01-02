@@ -22,7 +22,6 @@ void child(const char* cmd, char* const argv[])
 int main()
 {
 	char buf[10];
-	pid_t pid = 0;
 	int sign = 0;
 
 	while (1)

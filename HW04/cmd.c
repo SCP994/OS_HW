@@ -11,6 +11,9 @@ void function_init()
 	fcbop.ls = &ls;
 
 	useropenop.save = &save_to_openfiles;
+	useropenop.get_id = &get_openfiles_id;
+	useropenop.space_dir = &space_dir;
+	useropenop.clean_dir = &clean_dir;
 }
 
 void my_format()
@@ -67,6 +70,122 @@ void my_format()
 	useropenop.save(0, &fcbp1[0], currentdir);
 }
 
+int judge_dir(char* dirname)
+{
+	if (strcmp(dirname, "/") == 0) return 1;
+	unsigned short block = 5;
+	char buf[80];
+	int len = strlen(dirname);
+	for (int i = 0; i < len; ++i)
+		for (int j = i + 1; j <= len; ++j)
+			if (dirname[j] != '/' && dirname[j] != '\0')
+				buf[j - i - 1] = dirname[j];
+			else
+			{
+				buf[j - i - 1] = '\0';
+				fcb* fcbp = fcbop.find(block, buf, NULL, 0);
+				if (fcbp == NULL) return 0;
+				block = fcbp->first;
+				i = j - 1;
+				break;
+			}
+	return 1;
+}
+
+void my_cd(char* dirname)
+{
+	char dir1[80], dir2[80], buf[80];
+	int count = 0, len = 0;
+
+	if (dirname[0] != '/')
+	{
+		strcpy(dir1, currentdir);
+		if (strcmp(dir1, "/") != 0) strcat(dir1, "/");
+		strcat(dir1, dirname);
+	}
+	else strcpy(dir1, dirname);
+
+	len = strlen(dir1);
+	if (strcmp(dir1, "/") != 0 && dir1[len - 1] == '/')
+	{
+		dir1[len - 1] = '\0';
+		--len;
+	}
+
+	strcpy(dir2, "/");
+	for (int i = 0; i < len; ++i)
+		for (int j = i + 1; j <= len; ++j)
+			if (dir1[j] != '/' && dir1[j] != '\0')
+				buf[j - i - 1] = dir1[j];
+			else
+			{
+				buf[j - i - 1] = '\0';
+				if (strcmp(buf, ".") != 0)
+				{
+					if (strcmp(buf, "..") != 0)
+					{
+						if (strcmp(dir2, "/") != 0) strcat(dir2, "/");
+						strcat(dir2, buf);
+						++count;
+					}
+					else if (strcmp(dir2, "/") != 0)
+					{
+						for (int k = strlen(dir2) - 1; k >= 0; --k)
+							if (dir2[k] == '/')
+							{
+								dir2[k] = '\0';
+								--count;
+								break;
+							}
+						if (strcmp(dir2, "") == 0) strcat(dir2, "/");
+					}
+				}
+				i = j - 1;
+				break;
+			}
+
+	if (judge_dir(dir2) == 0)
+	{
+		printf("No such directory.\n");
+		return;
+	}
+	int space = useropenop.space_dir();
+	if (count > space)
+	{
+		printf("Open too many files.\n");
+		return;
+	}
+	useropenop.clean_dir();
+	if (strcmp(dir2, "/") == 0)
+	{
+		strcpy(currentdir, "/");
+		curdir = 0;
+		return;
+	}
+
+	strcpy(dir1, "/");
+	len = strlen(dir2);
+	unsigned short block = 5;
+	for (int i = 0; i < len; ++i)
+		for (int j = i + 1; j <= len; ++j)
+			if (dir2[j] != '/' && dir2[j] != '\0')
+				buf[j - i - 1] = dir2[j];
+			else
+			{
+				buf[j - i - 1] = '\0';
+				fcb* fcbp = fcbop.find(block, buf, NULL, 0);
+				block = fcbp->first;
+				int idx = useropenop.get_id();
+				if (strcmp(dir1, "/") != 0) strcat(dir1, "/");
+				strcat(dir1, buf);
+				useropenop.save(idx, fcbp, dir1);
+				curdir = idx;
+				i = j - 1;
+				break;
+			}
+	strcpy(currentdir, dir1);
+}
+
 void my_mkdir(char* dirname)
 {
 	fcb* fcbp = fcbop.find(openfilelist[curdir].first, dirname, NULL, 0);
@@ -115,7 +234,7 @@ void my_mkdir(char* dirname)
 	fcbp1[0].free = 1;
 	strcpy(fcbp1[1].filename, "..");
 	strcpy(fcbp1[1].exname, "");
-	fcbp1[1].attribute = 1;
+	fcbp1[1].attribute = 0;
 	fcbp1[1].first = openfilelist[curdir].first;
 	fcbp1[1].length = 2048;
 	fcbp1[1].free = 1;
@@ -233,6 +352,10 @@ void shell()
 				my_mkdir(buf2_trim);
 			else if (strcmp(cmd, "rmdir") == 0 && strlen(buf2_trim) > 0)
 				my_rmdir(buf2_trim);
+			else if (strcmp(cmd, "jdir") == 0 && strlen(buf2_trim) > 0)
+				printf("judge: %d\n", judge_dir(buf2_trim));
+			else if (strcmp(cmd, "cd") == 0 && strlen(buf2_trim) > 0)
+				my_cd(buf2_trim);
 			else
 				printf("No such command: %s\n", buf1);
 
@@ -248,136 +371,6 @@ void shell()
 	my_exitsys();
 }
 
-//int judge_dir(char* dirname)
-//{
-//	if (strcmp(dirname, "/") == 0) return 1;
-//	unsigned short block1_parent = 5, block2_parent = 6;
-//	fcbps fcbps1_parent = (fcbps)hardp[block1_parent], fcbps2_parent = (fcbps)hardp[block2_parent];
-//	char buf[80];
-//	int len = strlen(dirname);
-//	for (int i = 0; i < len; ++i)
-//		for (int j = i + 1; j <= len; ++j)
-//			if (dirname[j] != '/' && dirname[j] != '\0')
-//				buf[j - i - 1] = dirname[j];
-//			else
-//			{
-//				buf[j - i - 1] = '\0';
-//				block1_parent = BLOCKNUM;
-//				fcb* fcbp = fcbop.find(fcbps1_parent, buf, NULL, 0);
-//				if (fcbp == NULL) fcbp = fcbop.find(fcbps2_parent, buf, NULL, 0);
-//				if (fcbp == NULL)
-//					return 0;
-//				block1_parent = fcbp->first;
-//				block2_parent = fat1->id[block1_parent];
-//				fcbps1_parent = (fcbps)hardp[block1_parent];
-//				fcbps2_parent = (fcbps)hardp[block2_parent];
-//				i = j - 1;
-//				break;
-//			}
-//	return 1;
-//}
-//
-//void my_cd(char* dirname)
-//{
-//	char dir1[80], dir2[80], temp[80];
-//	int count = 0;
-//
-//	if (dirname[0] != '/')
-//	{
-//		strcpy(dir1, currentdir);
-//		if (strcmp(dir1, "/") != 0)
-//			strcat(dir1, "/");
-//		strcat(dir1, dirname);
-//	}
-//	//printf("dir: %s\n", dir1);
-//
-//	strcpy(dir2, "/");
-//	int len = strlen(dir1);
-//	for (int i = 0; i < len; ++i)
-//		for (int j = i + 1; j <= len; ++j)
-//			if (dir1[j] != '/' && dir1[j] != '\0')
-//				temp[j - i - 1] = dir1[j];
-//			else
-//			{
-//				temp[j - i - 1] = '\0';
-//				if (strcmp(temp, ".") != 0)
-//					if (strcmp(temp, "..") != 0)
-//					{
-//						if (strcmp(dir2, "/") != 0)
-//							strcat(dir2, "/");
-//						strcat(dir2, temp);
-//						++count;
-//					}
-//					else if (strcmp(dir2, "/") != 0)
-//					{
-//						for (int k = strlen(dir2) - 1; k >= 0; --k)
-//							if (dir2[k] == '/')
-//							{
-//								dir2[k] = '\0';
-//								--count;
-//								break;
-//							}
-//						if (strcmp(dir2, "") == 0)
-//							strcat(dir2, "/");
-//					}
-//				i = j - 1;
-//				break;
-//			}
-//	//printf("dir2: %s\n", dir2);
-//	if (judge_dir(dir2) == 0)
-//	{
-//		printf("No such directory.\n");
-//		return;
-//	}
-//
-//	int space = useropenop.space_dir();
-//	if (count > space)
-//	{
-//		printf("Open too many files.\n");
-//		return;
-//	}
-//	useropenop.clean_dir();
-//
-//	unsigned short block1_parent = 5, block2_parent = 6;
-//	fcbps fcbps1_parent = (fcbps)hardp[block1_parent], fcbps2_parent = (fcbps)hardp[block2_parent];
-//
-//	strcpy(currentdir, dir2);
-//	if (strcmp(dir2, "/") == 0)
-//		return;
-//
-//	strcpy(dir1, "/");
-//	len = strlen(dir2);
-//	for (int i = 0; i < len; ++i)
-//		for (int j = i + 1; j <= len; ++j)
-//			if (dir2[j] != '/' && dir2[j] != '\0')
-//				temp[j - i - 1] = dir2[j];
-//			else
-//			{
-//				temp[j - i - 1] = '\0';
-//				fcb* fcbp = fcbop.find(fcbps1_parent, temp, NULL, 0);
-//				if (fcbp == NULL) fcbp = fcbop.find(fcbps2_parent, temp, NULL, 0);
-//				block1_parent = fcbp->first;
-//				block2_parent = fat1->id[block1_parent];
-//
-//				int idx = useropenop.get_id();
-//				if (strcmp(dir1, "/") != 0)
-//					strcat(dir1, "/");
-//				strcat(dir1, temp);
-//				useropenop.save(idx, fcbp, dir1);
-//				curdir = idx;
-//				fcbps1_parent = (fcbps)hardp[block1_parent];
-//				fcbps2_parent = (fcbps)hardp[block2_parent];
-//				i = j - 1;
-//				break;
-//			}
-//}
-//
-
-//
-
-//
-
-//
 //char* get_name(char* filename)
 //{
 //	char* name = (char*)malloc(sizeof(char) * 8);
@@ -687,7 +680,4 @@ void shell()
 //	}
 //	return 0;
 //}
-//
-
-//
 

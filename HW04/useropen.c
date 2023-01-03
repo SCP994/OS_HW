@@ -53,9 +53,48 @@ int close_file(int fd)
 {
 	if (fd > 0 && fd < MAXOPENFILE && openfilelist[fd].topenfile == 1 && openfilelist[fd].attribute == 1)
 	{
+		if (openfilelist[fd].fcbstate == 1)
+		{
+			char dirname[80], buf[80];
+			strcpy(dirname, openfilelist[fd].dir);
+			unsigned short block = 5;
+			int len = strlen(dirname);
+			fcb* fcbp = NULL;
+			for (int i = 0; i < len; ++i)
+				for (int j = i + 1; j <= len; ++j)
+					if (dirname[j] != '/' && dirname[j] != '\0')
+						buf[j - i - 1] = dirname[j];
+					else
+					{
+						buf[j - i - 1] = '\0';
+						fcbp = fcbop.find(block, buf, NULL, 0);
+						block = fcbp->first;
+						i = j - 1;
+						break;
+					}
+			if (fcbp != NULL) block = fcbp->first;
+			fcbp = fcbop.find(block, openfilelist[fd].filename, openfilelist[fd].exname, 1);
+			fcbp->length = openfilelist[fd].length;
+		}
 		openfilelist[fd].topenfile = 0;
 		return 0;
 	}
 	return -1;
+}
+
+int find_file(char* filename, char* exname, unsigned short attribute, char* dir)
+{
+	for (int i = 1; i < MAXOPENFILE; ++i)
+		if (openfilelist[i].topenfile == 1 && openfilelist[i].attribute == attribute && strcmp(openfilelist[i].filename, filename) == 0
+			&& strcmp(openfilelist[i].exname, exname) == 0 && strcmp(openfilelist[i].dir, dir) == 0)
+			return i;
+	return -1;
+}
+
+void close()
+{
+	for (int i = 1; i < MAXOPENFILE; ++i)
+		if (openfilelist[i].topenfile == 1 && openfilelist[i].attribute == 1 && openfilelist[i].fcbstate == 1)
+			useropenop.close_file(i);
 }
 

@@ -15,3 +15,7 @@ int check_fd(int fd);
 
 int close_file(int fd);
 
+int find_file(char* filename, char* exname, unsigned short attribute, char* dir);
+
+void close();
+

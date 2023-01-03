@@ -3,10 +3,7 @@
 #include "block.h"
 #include "useropen.h"
 #include "fcb.h"
-
-int save();
-
-int load();
+#include "save_load.h"
 
 void function_init();
 

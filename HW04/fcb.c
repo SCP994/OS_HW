@@ -73,7 +73,9 @@ void ls(int block)
 				}
 				if (fcbp[i].attribute == 1)
 				{
-					printf("%s%s\t", fcbp[i].filename, fcbp[i].exname);
+					printf("%s", fcbp[i].filename);
+					if (strlen(fcbp[i].exname) > 0) printf(".%s", fcbp[i].exname);
+					printf("\t");
 					sign = 1;
 				}
 			}

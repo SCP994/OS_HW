@@ -14,6 +14,11 @@ void function_init()
 	useropenop.get_id = &get_openfiles_id;
 	useropenop.space_dir = &space_dir;
 	useropenop.clean_dir = &clean_dir;
+	useropenop.space_file = &space_file;
+	useropenop.check_fd = &check_fd;
+	useropenop.close_file = &close_file;
+	useropenop.find_file = &find_file;
+	useropenop.close = &close;
 }
 
 void my_format()
@@ -266,8 +271,231 @@ void my_ls()
 	fcbop.ls(openfilelist[curdir].first);
 }
 
+char* get_name(char* filename)
+{
+	char* name = (char*)malloc(sizeof(char) * 8);
+	memset(name, '\0', 8);
+	int idx = -1;
+	for (int i = strlen(filename) - 1; i >= 0; --i)
+		if (filename[i] == '.')
+		{
+			idx = i;
+			break;
+		}
+	if (idx == -1 || strlen(filename) - idx - 1 > 3 || idx == 0)
+		strncpy(name, filename, 7);
+	else
+	{
+		if (idx > 7) idx = 7;
+		for (int i = 0; i < idx; ++i)
+			name[i] = filename[i];
+	}
+	return name;
+}
+
+char* get_ext(char* filename)
+{
+	char* ext = (char*)malloc(sizeof(char) * 4);
+	memset(ext, '\0', 4);
+	int idx = -1;
+	for (int i = strlen(filename) - 1; i >= 0; --i)
+		if (filename[i] == '.')
+		{
+			idx = i;
+			break;
+		}
+	if (idx == -1 || strlen(filename) - idx - 1 > 3 || idx == 0)
+		return ext;
+	else
+		for (int i = idx + 1; i < strlen(filename); ++i)
+			ext[i - idx - 1] = filename[i];
+	return ext;
+}
+
+void my_create(char* filename)
+{
+	char* name = get_name(filename), * exname = get_ext(filename);
+	fcb* fcbp = fcbop.find(openfilelist[curdir].first, name, exname, 1);
+	if (fcbp != NULL)
+	{
+		printf("File exists.\n");
+		goto ret;
+	}
+	unsigned short* blocks = blockop.get(1);
+	if (blocks == NULL)
+	{
+		printf("No space left on the disk.\n");
+		goto ret;
+	}
+	unsigned short block1 = blocks[0];
+	free(blocks);
+	blocks = NULL;
+	fcbp = fcbop.get(openfilelist[curdir].first);
+	if (fcbp == NULL)
+	{
+		printf("No space left in the parent directory.\n");
+		goto ret;
+	}
+
+	fat1->id[block1] = END;
+
+	strcpy(fcbp->filename, name);
+	strcpy(fcbp->exname, exname);
+	fcbp->attribute = 1;
+	fcbp->first = block1;
+	fcbp->length = 0;
+	fcbp->free = 1;
+ret:
+	free(name);
+	free(exname);
+}
+
+void my_rm(char* filename)
+{
+	char* name = get_name(filename), * exname = get_ext(filename);
+	int fd = useropenop.find_file(name, exname, 1, currentdir);
+	if (fd != -1)
+		useropenop.close_file(fd);
+	fcb* fcbp = fcbop.find(openfilelist[curdir].first, name, exname, 1);
+	if (fcbp == NULL)
+	{
+		printf("File doesn't exist.\n");
+		goto ret;
+	}
+	blockop.clean_after(fcbp->first);
+	fcbp->free = 0;
+ret:
+	free(name);
+	free(exname);
+}
+
+int my_open(char* filename)
+{
+	char* name = get_name(filename), * exname = get_ext(filename);
+	int idx = useropenop.find_file(name, exname, 1, currentdir);
+	if (idx != -1)
+	{
+		printf("File already opend. (fd: %d)\n", idx);
+		goto ret;
+	}
+	fcb* fcbp = fcbop.find(openfilelist[curdir].first, name, exname, 1);
+	if (fcbp == NULL)
+	{
+		printf("File doesn't exist.\n");
+		goto ret;
+	}
+	idx = useropenop.get_id();
+	if (idx == -1)
+	{
+		printf("Open too many files.\n");
+		goto ret;
+	}
+	useropenop.save(idx, fcbp, currentdir);
+	printf("fd: %d\n", idx);
+ret:
+	free(name);
+	free(exname);
+	return idx;
+}
+
+void my_close(int fd)
+{
+	if (useropenop.check_fd(fd) != 0)
+	{
+		printf("No such file opened.\n");
+		return;
+	}
+	useropenop.close_file(fd);
+}
+
+int my_write(int fd)
+{
+	int error = useropenop.check_fd(fd);
+	if (error != 0)
+	{
+		printf("No such file opened.\n");
+		return -1;
+	}
+
+	char buf[1024];
+	printf("Enter: ");
+	fgets(buf, 1024, stdin);
+	if (buf[strlen(buf) - 1] == '\n') buf[strlen(buf) - 1] = '\0';
+	else while (getchar() != '\n');
+
+	printf("%s\n", buf);
+	printf("Choose write style(1, 2, 3): ");
+	char style = 0;
+	scanf("%c", &style);
+	printf("Style: %c\n", style);
+	do_write(fd, buf, strlen(buf), style);
+}
+
+int do_write(int fd, char* text, int len, char wstyle)
+{
+	//	unsigned short block1 = openfilelist[fd].first;
+	//
+	//	if (wstyle == '1')
+	//	{
+	//		char* wp = (char*)hardp[block1];
+	//		strcpy(wp, text);
+	//
+	//		if (fat1->id[block1] != END)
+	//			blockop.clean_after(fat1->id[block1]);
+	//		fat1->id[block1] = END;
+	//
+	//		openfilelist[fd].length = len;
+	//		openfilelist[fd].count = len;
+	//		openfilelist[fd].fcbstate = 1;
+	//		printf("%d,%d\n", fd, openfilelist[fd].length);
+	//		return 0;
+	//	}
+	//
+	//	if (wstyle == '2' || wstyle == '3')
+	//	{
+	//		if (wstyle == 3) openfilelist[fd].count = openfilelist[fd].length;
+	//		int num = openfilelist[fd].count / (BLOCKSIZE - 1);
+	//		while (num--)
+	//			block1 = fat1->id[block1];
+	//
+	//		if (fat1->id[block1] != END)
+	//			blockop.clean_after(fat1->id[block1]);
+	//
+	//		char* wp = (char*)hardp[block1];
+	//		int wp_idx = openfilelist[fd].count % (BLOCKSIZE - 1);
+	//		if (wp_idx + len <= BLOCKSIZE)
+	//		{
+	//			for (int i = wp_idx; i < wp_idx + len; ++i)
+	//				wp[i] = text[i - wp_idx];
+	//			openfilelist[fd].length = openfilelist[fd].count + len;
+	//			openfilelist[fd].count = openfilelist[fd].length;
+	//			openfilelist[fd].fcbstate = 1;
+	//			return 0;
+	//		}
+	//		else
+	//		{
+	//			for (int i = wp_idx; i < BLOCKSIZE; ++i)
+	//				wp[i] = text[i - wp_idx];
+	//			fat1->id[block1] = blockop.get(1)[0];
+	//			block1 = fat1->id[block1];
+	//			fat1->id[block1] = END;
+	//
+	//			wp = (char*)hardp[block1];
+	//			for (int i = BLOCKSIZE - wp_idx; i < len; ++i)
+	//				wp[i - BLOCKSIZE + wp_idx] = text[i];
+	//
+	//			openfilelist[fd].length = openfilelist[fd].count + len;
+	//			openfilelist[fd].count = openfilelist[fd].length;
+	//			openfilelist[fd].fcbstate = 1;
+	//			return 0;
+	//		}
+	//	}
+	return -1;
+}
+
 void my_exitsys()
 {
+	useropenop.close();
 	save();
 	free(myvhard);
 	myvhard = NULL;
@@ -306,6 +534,18 @@ int check_str(char* str)
 	for (int i = 0; i < len; ++i)
 		if (str[i] == ' ' || str[i] == '\t') return -1;
 	return 0;
+}
+
+int str_num(char* str)
+{
+	int ret = 0, len = strlen(str);
+	for (int i = 0; i < len; ++i)
+	{
+		ret *= 10;
+		if (str[i] < '0' || str[i] > '9') return -1;
+		ret += str[i] - '0';
+	}
+	return ret;
 }
 
 void shell()
@@ -347,18 +587,31 @@ void shell()
 			strcpy(cmd, buf1_trim);
 			strcpy(buf2, &buf1_trim[strlen(buf1_trim) + 1]);
 			char* buf2_trim = trim(buf2);
-
-			if (strcmp(cmd, "mkdir") == 0 && strlen(buf2_trim) > 0)
-				my_mkdir(buf2_trim);
-			else if (strcmp(cmd, "rmdir") == 0 && strlen(buf2_trim) > 0)
-				my_rmdir(buf2_trim);
-			else if (strcmp(cmd, "jdir") == 0 && strlen(buf2_trim) > 0)
-				printf("judge: %d\n", judge_dir(buf2_trim));
-			else if (strcmp(cmd, "cd") == 0 && strlen(buf2_trim) > 0)
-				my_cd(buf2_trim);
+			if (check_str(buf2_trim) == 0 && strlen(buf2_trim) > 0)
+			{
+				if (strcmp(cmd, "mkdir") == 0)
+					my_mkdir(buf2_trim);
+				else if (strcmp(cmd, "rmdir") == 0)
+					my_rmdir(buf2_trim);
+				else if (strcmp(cmd, "cd") == 0)
+					my_cd(buf2_trim);
+				else if (strcmp(cmd, "create") == 0)
+					my_create(buf2_trim);
+				else if (strcmp(cmd, "rm") == 0)
+					my_rm(buf2_trim);
+				else if (strcmp(cmd, "open") == 0)
+					my_open(buf2_trim);
+				else if (strcmp(cmd, "close") == 0)
+				{
+					int fd = str_num(buf2_trim);
+					if (fd == -1)
+						printf("Wrong fd number: %s\n", buf2_trim);
+					else
+						my_close(fd);
+				}
+			}
 			else
 				printf("No such command: %s\n", buf1);
-
 			free(buf2_trim);
 		}
 		if (sign == 1)
@@ -371,249 +624,7 @@ void shell()
 	my_exitsys();
 }
 
-//char* get_name(char* filename)
-//{
-//	char* name = (char*)malloc(sizeof(char) * 8);
-//	memset(name, '\0', 8);
-//	int idx = -1;
-//	for (int i = strlen(filename) - 1; i >= 0; --i)
-//		if (filename[i] == '.')
-//		{
-//			idx = i;
-//			break;
-//		}
-//	if (idx == -1 || strlen(filename) - idx - 1 > 3 || idx == 0)
-//		strncpy(name, filename, 7);
-//	else
-//	{
-//		if (idx > 7) idx = 7;
-//		for (int i = 0; i < idx; ++i)
-//			name[i] = filename[i];
-//	}
-//	return name;
-//}
-//
-//char* get_ext(char* filename)
-//{
-//	char* ext = (char*)malloc(sizeof(char) * 4);
-//	memset(ext, '\0', 4);
-//	int idx = -1;
-//	for (int i = strlen(filename) - 1; i >= 0; --i)
-//		if (filename[i] == '.')
-//		{
-//			idx = i;
-//			break;
-//		}
-//	if (idx == -1 || strlen(filename) - idx - 1 > 3 || idx == 0)
-//		return ext;
-//	else
-//		for (int i = idx + 1; i < strlen(filename); ++i)
-//			ext[i - idx - 1] = filename[i];
-//	return ext;
-//}
-//
-//void my_create(char* filename)
-//{
-//	char* name = get_name(filename), * exname = get_ext(filename);
-//
-//	unsigned short block1_parent = openfilelist[curdir].first, block2_parent = fat1->id[block1_parent];
-//	fcbps fcbps1_parent = (fcbps)hardp[block1_parent], fcbps2_parent = (fcbps)hardp[block2_parent];
-//	fcb* fcbp = fcbop.find(fcbps1_parent, name, exname, 1);
-//	if (fcbp == NULL) fcbp = fcbop.find(fcbps2_parent, name, exname, 1);
-//	if (fcbp != NULL)
-//	{
-//		printf("File exists.\n");
-//		return;
-//	}
-//
-//	unsigned short* ret = blockop.get(1);
-//	if (ret == NULL)
-//	{
-//		printf("No space left.\n");
-//		return;
-//	}
-//	unsigned short block1 = ret[0];
-//	free(ret);
-//	ret = NULL;
-//
-//	fcbp = fcbop.get(fcbps1_parent);
-//	if (fcbp == NULL) fcbp = fcbop.get(fcbps2_parent);
-//	if (fcbp == NULL)
-//	{
-//		printf("Enough files for the parent directory.\n");
-//		return;
-//	}
-//	fat1->id[block1] = END;
-//
-//	strcpy(fcbp->filename, name);
-//	strcpy(fcbp->exname, exname);
-//	fcbp->attribute = 1;
-//	fcbp->first = block1;
-//	fcbp->length = 0;
-//	fcbp->free = 1;
-//}
-//
-//void my_rm(char* filename)
-//{
-//	char* name = get_name(filename), * exname = get_ext(filename);
-//
-//	unsigned short block1_parent = openfilelist[curdir].first, block2_parent = fat1->id[block1_parent];
-//	fcbps fcbps1_parent = (fcbps)hardp[block1_parent], fcbps2_parent = (fcbps)hardp[block2_parent];
-//	fcb* fcbp = fcbop.find(fcbps1_parent, name, exname, 1);
-//	if (fcbp == NULL) fcbp = fcbop.find(fcbps2_parent, name, exname, 1);
-//	if (fcbp == NULL)
-//	{
-//		printf("File doesn't exist.\n");
-//		return;
-//	}
-//
-//	unsigned short block1 = fcbp->first;
-//	while (fat1->id[block1] != END)
-//	{
-//		unsigned short t = fat1->id[block1];
-//		fat1->id[block1] = FREE;
-//		block1 = t;
-//	}
-//	fat1->id[block1] = FREE;
-//
-//	fcbp->free = 0;
-//}
-//
-//int my_open(char* filename)
-//{
-//	char* name = get_name(filename), * exname = get_ext(filename);
-//
-//	unsigned short block1_parent = openfilelist[curdir].first, block2_parent = fat1->id[block1_parent];
-//	fcbps fcbps1_parent = (fcbps)hardp[block1_parent], fcbps2_parent = (fcbps)hardp[block2_parent];
-//	fcb* fcbp = fcbop.find(fcbps1_parent, name, exname, 1);
-//	if (fcbp == NULL) fcbp = fcbop.find(fcbps2_parent, name, exname, 1);
-//	if (fcbp == NULL)
-//	{
-//		printf("File doesn't exist.\n");
-//		return -1;
-//	}
-//
-//	int idx = useropenop.get_id();
-//	if (idx == -1)
-//	{
-//		printf("Open too many files.\n");
-//		return -1;
-//	}
-//	useropenop.save(idx, fcbp, currentdir);
-//	printf("fd: %d\n", idx);
-//	return idx;
-//}
-//
-//void my_close(int fd)
-//{
-//	int error = useropenop.check_fd(fd);
-//	if (error != 0)
-//	{
-//		printf("No such file opened.\n");
-//		return;
-//	}
-//
-//	unsigned short block1_parent = openfilelist[curdir].first, block2_parent = fat1->id[block1_parent];
-//	fcbps fcbps1_parent = (fcbps)hardp[block1_parent], fcbps2_parent = (fcbps)hardp[block2_parent];
-//	fcb* fcbp = fcbop.find(fcbps1_parent, openfilelist[fd].filename, openfilelist[fd].exname, 1);
-//	if (fcbp == NULL) fcbp = fcbop.find(fcbps2_parent, openfilelist[fd].filename, openfilelist[fd].exname, 1);
-//	if (fcbp == NULL)
-//	{
-//		printf("File doesn't exist.\n");
-//		return;
-//	}
-//	fcbp->length = openfilelist[fd].length;
-//
-//	error = useropenop.close_file(fd);
-//	if (error != 0)
-//	{
-//		printf("No such file opened. %d\n", error);
-//		return;
-//	}
-//	printf("success\n");
-//}
-//
-//int my_write(int fd)
-//{
-//	int error = useropenop.check_fd(fd);
-//	if (error != 0)
-//	{
-//		printf("No such file opened.\n");
-//		return -1;
-//	}
-//
-//	char buf[1024];
-//	printf("Enter: ");
-//	fgets(buf, 1024, stdin);
-//	printf("%s\n", buf);
-//	printf("Choose write style(1, 2, 3): ");
-//	char style = 0;
-//	scanf("%c", &style);
-//	printf("Style: %c\n", style);
-//	do_write(fd, buf, strlen(buf), style);
-//}
-//
-//int do_write(int fd, char* text, int len, char wstyle)
-//{
-//	unsigned short block1 = openfilelist[fd].first;
-//
-//	if (wstyle == '1')
-//	{
-//		char* wp = (char*)hardp[block1];
-//		strcpy(wp, text);
-//
-//		if (fat1->id[block1] != END)
-//			blockop.clean_after(fat1->id[block1]);
-//		fat1->id[block1] = END;
-//
-//		openfilelist[fd].length = len;
-//		openfilelist[fd].count = len;
-//		openfilelist[fd].fcbstate = 1;
-//		printf("%d,%d\n", fd, openfilelist[fd].length);
-//		return 0;
-//	}
-//
-//	if (wstyle == '2' || wstyle == '3')
-//	{
-//		if (wstyle == 3) openfilelist[fd].count = openfilelist[fd].length;
-//		int num = openfilelist[fd].count / (BLOCKSIZE - 1);
-//		while (num--)
-//			block1 = fat1->id[block1];
-//
-//		if (fat1->id[block1] != END)
-//			blockop.clean_after(fat1->id[block1]);
-//
-//		char* wp = (char*)hardp[block1];
-//		int wp_idx = openfilelist[fd].count % (BLOCKSIZE - 1);
-//		if (wp_idx + len <= BLOCKSIZE)
-//		{
-//			for (int i = wp_idx; i < wp_idx + len; ++i)
-//				wp[i] = text[i - wp_idx];
-//			openfilelist[fd].length = openfilelist[fd].count + len;
-//			openfilelist[fd].count = openfilelist[fd].length;
-//			openfilelist[fd].fcbstate = 1;
-//			return 0;
-//		}
-//		else
-//		{
-//			for (int i = wp_idx; i < BLOCKSIZE; ++i)
-//				wp[i] = text[i - wp_idx];
-//			fat1->id[block1] = blockop.get(1)[0];
-//			block1 = fat1->id[block1];
-//			fat1->id[block1] = END;
-//
-//			wp = (char*)hardp[block1];
-//			for (int i = BLOCKSIZE - wp_idx; i < len; ++i)
-//				wp[i - BLOCKSIZE + wp_idx] = text[i];
-//
-//			openfilelist[fd].length = openfilelist[fd].count + len;
-//			openfilelist[fd].count = openfilelist[fd].length;
-//			openfilelist[fd].fcbstate = 1;
-//			return 0;
-//		}
-//	}
-//	return -1;
-//}
+
 //
 //int my_read(int fd)
 //{

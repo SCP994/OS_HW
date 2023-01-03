@@ -50,7 +50,7 @@ typedef struct BLOCK_OP
 typedef struct USEROPEN
 {
 	char filename[8];
-	char exname[3];
+	char exname[4];
 	unsigned char attribute;
 	unsigned short first;
 	unsigned long length;
@@ -69,6 +69,8 @@ typedef struct USEROPEN_OP
 	int (*space_file)();
 	int (*check_fd)(int fd);
 	int (*close_file)(int fd);
+	int (*find_file)(char* filename, char* exname, unsigned short attribute, char* dir);
+	void (*close)();
 } useropen_op;
 
 unsigned char* myvhard;

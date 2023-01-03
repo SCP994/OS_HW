@@ -36,7 +36,7 @@ void my_format()
 
 	if (error != 0)
 	{
-		strcpy(block->information, "Block Size: 1024 B, Block Number: 1000.");
+		//strcpy(block->information, "Block Size: 1024 B, Block Number: 1000.");
 		block->root = 5;
 		block->startblock = hardp[7];
 
@@ -417,80 +417,147 @@ int my_write(int fd)
 		return -1;
 	}
 
-	char buf[1024];
+	char buf[BLOCKSIZE];
 	printf("Enter: ");
-	fgets(buf, 1024, stdin);
+	fgets(buf, BLOCKSIZE, stdin);
 	if (buf[strlen(buf) - 1] == '\n') buf[strlen(buf) - 1] = '\0';
 	else while (getchar() != '\n');
 
-	printf("%s\n", buf);
-	printf("Choose write style(1, 2, 3): ");
+	printf("Choose write style(1: truncated, 2: overwrite, 3: append): ");
 	char style = 0;
 	scanf("%c", &style);
-	printf("Style: %c\n", style);
-	do_write(fd, buf, strlen(buf), style);
+	while (getchar() != '\n');
+	error = do_write(fd, buf, strlen(buf), style);
+	if (error == -1)
+	{
+		printf("No enough space left on the disk.\n");
+		return -1;
+	}
+	return 0;
 }
 
 int do_write(int fd, char* text, int len, char wstyle)
 {
-	//	unsigned short block1 = openfilelist[fd].first;
-	//
-	//	if (wstyle == '1')
-	//	{
-	//		char* wp = (char*)hardp[block1];
-	//		strcpy(wp, text);
-	//
-	//		if (fat1->id[block1] != END)
-	//			blockop.clean_after(fat1->id[block1]);
-	//		fat1->id[block1] = END;
-	//
-	//		openfilelist[fd].length = len;
-	//		openfilelist[fd].count = len;
-	//		openfilelist[fd].fcbstate = 1;
-	//		printf("%d,%d\n", fd, openfilelist[fd].length);
-	//		return 0;
-	//	}
-	//
-	//	if (wstyle == '2' || wstyle == '3')
-	//	{
-	//		if (wstyle == 3) openfilelist[fd].count = openfilelist[fd].length;
-	//		int num = openfilelist[fd].count / (BLOCKSIZE - 1);
-	//		while (num--)
-	//			block1 = fat1->id[block1];
-	//
-	//		if (fat1->id[block1] != END)
-	//			blockop.clean_after(fat1->id[block1]);
-	//
-	//		char* wp = (char*)hardp[block1];
-	//		int wp_idx = openfilelist[fd].count % (BLOCKSIZE - 1);
-	//		if (wp_idx + len <= BLOCKSIZE)
-	//		{
-	//			for (int i = wp_idx; i < wp_idx + len; ++i)
-	//				wp[i] = text[i - wp_idx];
-	//			openfilelist[fd].length = openfilelist[fd].count + len;
-	//			openfilelist[fd].count = openfilelist[fd].length;
-	//			openfilelist[fd].fcbstate = 1;
-	//			return 0;
-	//		}
-	//		else
-	//		{
-	//			for (int i = wp_idx; i < BLOCKSIZE; ++i)
-	//				wp[i] = text[i - wp_idx];
-	//			fat1->id[block1] = blockop.get(1)[0];
-	//			block1 = fat1->id[block1];
-	//			fat1->id[block1] = END;
-	//
-	//			wp = (char*)hardp[block1];
-	//			for (int i = BLOCKSIZE - wp_idx; i < len; ++i)
-	//				wp[i - BLOCKSIZE + wp_idx] = text[i];
-	//
-	//			openfilelist[fd].length = openfilelist[fd].count + len;
-	//			openfilelist[fd].count = openfilelist[fd].length;
-	//			openfilelist[fd].fcbstate = 1;
-	//			return 0;
-	//		}
-	//	}
-	return -1;
+	unsigned short block = openfilelist[fd].first;
+	if (wstyle == '1')
+	{
+		char* wp = (char*)hardp[block];
+		strcpy(wp, text);
+		if (fat1->id[block] != END)
+			blockop.clean_after(fat1->id[block]);
+		fat1->id[block] = END;
+		openfilelist[fd].length = len;
+		openfilelist[fd].count = len;
+		openfilelist[fd].fcbstate = 1;
+		return 0;
+	}
+	if (wstyle == '2' || wstyle == '3')
+	{
+		if (wstyle == '3') openfilelist[fd].count = openfilelist[fd].length;
+		int num = openfilelist[fd].count / BLOCKSIZE;
+		while (num--) block = fat1->id[block];
+		char* wp = (char*)hardp[block];
+		int idx = openfilelist[fd].count % BLOCKSIZE;
+		if (idx + len < BLOCKSIZE)
+		{
+			for (int i = idx; i < idx + len; ++i)
+				wp[i] = text[i - idx];
+			if (openfilelist[fd].length < openfilelist[fd].count + len)
+				openfilelist[fd].length = openfilelist[fd].count + len;
+			openfilelist[fd].count = openfilelist[fd].count + len;
+			openfilelist[fd].fcbstate = 1;
+		}
+		else
+		{
+			if (fat1->id[block] == END)
+			{
+				unsigned short* blocks = blockop.get(1);
+				if (blocks == NULL) return -1;
+				fat1->id[block] = blocks[0];
+				fat1->id[blocks[0]] = END;
+				free(blocks);
+				blocks = NULL;
+			}
+			for (int i = idx; i < BLOCKSIZE; ++i)
+				wp[i] = text[i - idx];
+			block = fat1->id[block];
+			wp = (char*)hardp[block];
+			for (int i = 0; i < len - (BLOCKSIZE - idx); ++i)
+				wp[i] = text[i + BLOCKSIZE - idx];
+			if (openfilelist[fd].length < openfilelist[fd].count + len)
+				openfilelist[fd].length = openfilelist[fd].count + len;
+			openfilelist[fd].count = openfilelist[fd].count + len;
+			openfilelist[fd].fcbstate = 1;
+		}
+	}
+	return -2;
+}
+
+int my_read(int fd)
+{
+	int idx = 0, len = 0;
+	printf("Enter read position: ");
+	scanf("%d", &idx);
+	printf("Enter length to read: ");
+	scanf("%d", &len);
+
+	int error = useropenop.check_fd(fd);
+	if (error != 0)
+	{
+		printf("No such file opened.\n");
+		return -1;
+	}
+	if (len >= BLOCKSIZE || len == 0)
+	{
+		printf("Param len error(0 < len < %d).\n", BLOCKSIZE);
+		return -1;
+	}
+	char* buf = (char*)malloc(sizeof(char) * BLOCKSIZE);
+	error = do_read(fd, len, buf, idx);
+	if (error == -1)
+	{
+		printf("Read position is out of length.\n");
+		free(buf);
+		return error;
+	}
+	printf("%s\n", buf);
+	while (getchar() != '\n');
+	free(buf);
+	return 0;
+}
+
+int do_read(int fd, int len, char* text, int idx)
+{
+	if (idx >= openfilelist[fd].length)
+		return -1;
+	if (idx + len > openfilelist[fd].length)
+		len = openfilelist[fd].length - idx;
+
+	unsigned short block = openfilelist[fd].first;
+	int num = idx / (BLOCKSIZE);
+	while (num--) block = fat1->id[block];
+
+	int temp = idx;
+	idx = idx % BLOCKSIZE;
+	char* rp = (char*)hardp[block];
+	if (idx + len < BLOCKSIZE)
+	{
+		for (int i = idx; i < idx + len; ++i)
+			text[i - idx] = rp[i];
+		text[len] = '\0';
+	}
+	else
+	{
+		for (int i = idx; i < BLOCKSIZE; ++i)
+			text[i - idx] = rp[i];
+		block = fat1->id[block];
+		rp = (char*)hardp[block];
+		for (int i = 0; i < len - (BLOCKSIZE - idx); ++i)
+			text[i + BLOCKSIZE - idx] = rp[i];
+		text[len] = '\0';
+	}
+	openfilelist[fd].count = temp + len;
+	return 0;
 }
 
 void my_exitsys()
@@ -601,13 +668,17 @@ void shell()
 					my_rm(buf2_trim);
 				else if (strcmp(cmd, "open") == 0)
 					my_open(buf2_trim);
-				else if (strcmp(cmd, "close") == 0)
+				else
 				{
 					int fd = str_num(buf2_trim);
 					if (fd == -1)
-						printf("Wrong fd number: %s\n", buf2_trim);
-					else
+						printf("No such command: %s\n", buf1);
+					else if (strcmp(cmd, "close") == 0)
 						my_close(fd);
+					else if (strcmp(cmd, "write") == 0)
+						my_write(fd);
+					else if (strcmp(cmd, "read") == 0)
+						my_read(fd);
 				}
 			}
 			else
@@ -623,72 +694,4 @@ void shell()
 	}
 	my_exitsys();
 }
-
-
-//
-//int my_read(int fd)
-//{
-//	int idx = 0, len = 0;
-//	printf("Enter read position: ");
-//	scanf("%d", &idx);
-//	printf("Enter length to read: ");
-//	scanf("%d", &len);
-//
-//	int error = useropenop.check_fd(fd);
-//	if (error != 0)
-//	{
-//		printf("No such file opened.\n");
-//		return -1;
-//	}
-//
-//	if (len > BLOCKSIZE || len < 1)
-//	{
-//		printf("Param len error.\n");
-//		return -1;
-//	}
-//
-//	char* buf = (char*)malloc(sizeof(char) * len);
-//	error = do_read(fd, len, buf, idx);
-//	if (error != 0)
-//	{
-//		printf("Read error. %d\n", error);
-//		free(buf);
-//		return error;
-//	}
-//	printf("%s\n", buf);
-//	free(buf);
-//	return 0;
-//}
-//
-//int do_read(int fd, int len, char* text, int idx)
-//{
-//	openfilelist[fd].count = idx;
-//	if (openfilelist[fd].count + len > openfilelist[fd].length)
-//	{
-//		printf("Error: %d,%d,%d,%d\n", fd, openfilelist[fd].count, len, openfilelist[fd].length);
-//		return -1;
-//	}
-//
-//	unsigned short block1 = openfilelist[fd].first;
-//
-//	int num = openfilelist[fd].count / (BLOCKSIZE - 1);
-//	while (num--)
-//		block1 = fat1->id[block1];
-//
-//	char* wp = (char*)hardp[block1];
-//
-//	if (BLOCKSIZE - openfilelist[fd].count >= len)
-//		for (int i = openfilelist[fd].count; i < openfilelist[fd].count + len; ++i)
-//			text[i - openfilelist[fd].count] = wp[i];
-//	else
-//	{
-//		for (int i = openfilelist[fd].count; i < BLOCKSIZE; ++i)
-//			text[i - openfilelist[fd].count] = wp[i];
-//		block1 = fat1->id[block1];
-//		wp = (char*)hardp[block1];
-//		for (int i = 0; i < len - (BLOCKSIZE - openfilelist[fd].count); ++i)
-//			text[i + BLOCKSIZE - openfilelist[fd].count] = wp[i];
-//	}
-//	return 0;
-//}
 

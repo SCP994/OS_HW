@@ -68,7 +68,8 @@ int close_file(int fd)
 					{
 						buf[j - i - 1] = '\0';
 						fcbp = fcbop.find(block, buf, NULL, 0);
-						block = fcbp->first;
+						if (fcbp != NULL)
+							block = fcbp->first;
 						i = j - 1;
 						break;
 					}

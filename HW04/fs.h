@@ -3,13 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BLOCKSIZE 96
-#define SIZE 224000
+#define BLOCKSIZE 1024
+#define SIZE 1024000
 #define BLOCKNUM 1000
 #define END 65535
 #define FREE 0
 #define MAXOPENFILE 10
-#define FCBNUM 3
+#define FCBNUM 32
 
 typedef struct FCB
 {

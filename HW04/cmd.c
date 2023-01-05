@@ -1,5 +1,17 @@
 #include "cmd.h"
 
+unsigned char* myvhard;
+useropen openfilelist[MAXOPENFILE];
+int curdir;
+char currentdir[80];
+
+unsigned char* hardp[BLOCKNUM];
+fat* fat1;
+
+block_op blockop;
+fcb_op fcbop;
+useropen_op useropenop;
+
 void function_init()
 {
 	blockop.get = &get_blocks;
@@ -36,7 +48,7 @@ void my_format()
 
 	if (error != 0)
 	{
-		//strcpy(block->information, "Block Size: 1024 B, Block Number: 1000.");
+		strcpy(block->information, "Block Size: 1024 B, Block Number: 1000.");
 		block->root = 5;
 		block->startblock = hardp[7];
 
@@ -466,6 +478,7 @@ int do_write(int fd, char* text, int len, char wstyle)
 				openfilelist[fd].length = openfilelist[fd].count + len;
 			openfilelist[fd].count = openfilelist[fd].count + len;
 			openfilelist[fd].fcbstate = 1;
+			return 0;
 		}
 		else
 		{
@@ -488,6 +501,7 @@ int do_write(int fd, char* text, int len, char wstyle)
 				openfilelist[fd].length = openfilelist[fd].count + len;
 			openfilelist[fd].count = openfilelist[fd].count + len;
 			openfilelist[fd].fcbstate = 1;
+			return 0;
 		}
 	}
 	return -2;
@@ -507,9 +521,9 @@ int my_read(int fd)
 		printf("No such file opened.\n");
 		return -1;
 	}
-	if (len >= BLOCKSIZE || len == 0)
+	if (len >= BLOCKSIZE || len < 0)
 	{
-		printf("Param len error(0 < len < %d).\n", BLOCKSIZE);
+		printf("Param len error(0 <= len < %d).\n", BLOCKSIZE);
 		return -1;
 	}
 	char* buf = (char*)malloc(sizeof(char) * BLOCKSIZE);
@@ -520,8 +534,11 @@ int my_read(int fd)
 		free(buf);
 		return error;
 	}
-	printf("%s\n", buf);
-	while (getchar() != '\n');
+	if (strlen(buf) > 0)
+	{
+		printf("%s\n", buf);
+		while (getchar() != '\n');
+	}
 	free(buf);
 	return 0;
 }

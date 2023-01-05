@@ -1,5 +1,8 @@
 #include "fcb.h"
 
+extern unsigned char* hardp[BLOCKNUM];
+extern fat* fat1;
+
 fcb* get_fcb(int block)
 {
 	fcb* fcbp = NULL;

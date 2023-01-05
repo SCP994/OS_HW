@@ -1,5 +1,7 @@
 #include "save_load.h"
 
+extern unsigned char* myvhard;
+
 int save()
 {
 	FILE* fp = fopen("saved", "wb+");

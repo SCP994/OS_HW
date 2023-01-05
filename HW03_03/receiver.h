@@ -1,4 +1,4 @@
 #include "common.h"
 
-void* receiver(void* v);
+void* receiver(void*);
 

@@ -2,72 +2,53 @@
 
 void* receiver(void* v)
 {
-	key_t key_sem = ftok("receiver", 0);
-	int semid = semget(key_sem, 0, 0666);
-
-	P_operation(semid, 0);
-
 	char buf[MAX];
-	key_t key = ftok("receiver", 1);
-	int msgid = msgget(key, 0666);
+	key_t key_sem = ftok("msg", 0), key_msg = ftok("msg", 1);
+	int semid = semget(key_sem, 2, 0666);
+	P_operation(semid, 0);
+	int msgid = msgget(key_msg, 0666);
 	if (msgid == -1)
 	{
 		perror("receiver msgget error");
 		return NULL;
 	}
 
-	message* msg = (message*)malloc(sizeof(message));
 	int count = 2;
-
+	message msg;
 	while (count)
 	{
 		sleep(5);
+		P_operation(semid, 1);
 		while (count)
 		{
-			memset(buf, '\0', MAX);
-
-			int rcvid = msgrcv(msgid, msg, sizeof(message), 3, IPC_NOWAIT);  // 接受类型为 3,不能填 0，即接受队列中第一个消息，否则会接受到自己发出去的消息
-			//if (errno == ENOMSG)
+			int rcvid = msgrcv(msgid, &msg, sizeof(message), RCV, IPC_NOWAIT);
 			if (rcvid == -1)
 				break;
-
-			if (strcmp(msg->msgtext, "end1") == 0)
+			if (strcmp(msg.msgtext, "end1") == 0 && msg.senderid == SND1)
 			{
-				memset(msg->msgtext, '\0', MAX);
-				strcpy(msg->msgtext, "over1");  // 没有考虑用户输入 "over1" 的情况
-				msg->msgtype = 1;
-				msgsnd(msgid, msg, sizeof(message), 0);
+				strcpy(msg.msgtext, "over1");
+				msg.msgtype = SND1;
+				msg.senderid = RCV;
+				msgsnd(msgid, &msg, sizeof(message), 0);
 				--count;
-				V_operation(semid, 1);
 				continue;
 			}
-
-			if (strcmp(msg->msgtext, "end2") == 0)
+			if (strcmp(msg.msgtext, "end2") == 0 && msg.senderid == SND2)
 			{
-				memset(msg->msgtext, '\0', MAX);
-				strcpy(msg->msgtext, "over2");
-				msg->msgtype = 2;
-				msgsnd(msgid, msg, sizeof(message), 0);
+				strcpy(msg.msgtext, "over2");
+				msg.msgtype = SND2;
+				msg.senderid = RCV;
+				msgsnd(msgid, &msg, sizeof(message), 0);
 				--count;
-				V_operation(semid, 1);
 				continue;
 			}
-
-			printf("Data Received ");
-			if (msg->senderid = 1)
-				printf("from sender1: ");
-			else if (msg->senderid = 2)
-				printf("from sender2: ");
-			printf("%s", msg->msgtext);
-
+			if (msg.senderid == SND1)
+				printf("Data received from sender1: %s\n", msg.msgtext);
+			else if (msg.senderid == SND2)
+				printf("Data received from sender2: %s\n", msg.msgtext);
 		}
-
-
-		//V_operation(semid, 1);
+		V_operation(semid, 1);
 	}
-
-	if (msg) free(msg);
-
 	return NULL;
 }
 

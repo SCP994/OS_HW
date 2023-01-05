@@ -36,7 +36,7 @@ typedef struct FAT
 
 typedef struct BLOCK0
 {
-	//char information[200];
+	char information[200];
 	unsigned short root;
 	unsigned char* startblock;
 } block0;
@@ -72,16 +72,4 @@ typedef struct USEROPEN_OP
 	int (*find_file)(char* filename, char* exname, unsigned short attribute, char* dir);
 	void (*close)();
 } useropen_op;
-
-unsigned char* myvhard;
-useropen openfilelist[MAXOPENFILE];
-int curdir;
-char currentdir[80];
-
-unsigned char* hardp[BLOCKNUM];
-fat* fat1;
-
-block_op blockop;
-fcb_op fcbop;
-useropen_op useropenop;
 

@@ -1,5 +1,6 @@
 #include "common.h"
 
-void* sender1(void* v);
+void* sender1(void*);
 
-void* sender2(void* v);
+void* sender2(void*);
+

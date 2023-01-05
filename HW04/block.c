@@ -1,5 +1,7 @@
 #include "block.h"
 
+extern fat* fat1;
+
 unsigned short* get_blocks(int num)
 {
 	unsigned short* ret = (unsigned short*)malloc(sizeof(unsigned short) * num);

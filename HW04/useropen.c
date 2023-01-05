@@ -1,5 +1,10 @@
 #include "useropen.h"
 
+extern useropen openfilelist[MAXOPENFILE];
+
+extern fcb_op fcbop;
+extern useropen_op useropenop;
+
 void save_to_openfiles(int idx, fcb* fcbp, char* dir)
 {
 	strcpy(openfilelist[idx].filename, fcbp->filename);

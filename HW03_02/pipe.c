@@ -89,8 +89,10 @@ void pipe_test()
 	exit(0);
 }
 
-int main(void)
+int main()
 {
 	pipe_test();
+
+	return 0;
 }
 

@@ -37,7 +37,7 @@ void pipe_test()
 	if (pid[0] > 0)
 	{
 		sleep(5);
-		n = read(filedes[0], buf, 4096 * 16);
+		n = read(filedes[0], buf, 4096 * 16 - 50);
 		printf("read %d byte(s) from pipe\n", n);
 		n = read(filedes[0], buf, 100);
 		printf("read %d byte(s) from pipe\n", n);
@@ -78,9 +78,9 @@ void pipe_test()
 		exit(0);
 	}
 
-	wait(NULL);
-	wait(NULL);
-	wait(&status);
+	waitpid(pid[0], NULL, 0);
+	waitpid(pid[1], NULL, 0);
+	waitpid(pid[2], &status, 0);
 	if (WIFEXITED(status))
 		printf("child exit with %d\n", WEXITSTATUS(status));
 	if (WIFSIGNALED(status))
